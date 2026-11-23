@@ -39,7 +39,7 @@ def retext(ws, text, start, end):
     return [{"w": t, "start": a + i * d, "end": a + (i + 1) * d} for i, t in enumerate(toks)]
 
 
-def make_ass(words, start, end, path, style="hype", per_line=3, position="bottom", font=None):
+def make_ass(words, start, end, path, style="hype", per_line=3, position="bottom", font=None, resolution=(1080, 1920)):
     spec = STYLES.get(style, STYLES["hype"])
     align, mv = POSITIONS.get(position, POSITIONS["bottom"])
     fname = FONT_NAMES.get(font or spec["font"], FONT_NAMES["arial"])
@@ -48,13 +48,16 @@ def make_ass(words, start, end, path, style="hype", per_line=3, position="bottom
     outline_col = back if spec["box"] else "&H00000000"
     border = 3 if spec["box"] else 1
     shadow = 0 if spec["box"] else 1
+    width, height = resolution
+    margin_v = int(mv * height / 1920)
+    font_size = int(spec["fs"] * height / 1920)
     head = (
-        "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n"
+        f"[Script Info]\\nScriptType: v4.00+\\nPlayResX: {width}\\nPlayResY: {height}\\n"
         "[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,"
         "Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,"
         "MarginL,MarginR,MarginV,Encoding\n"
-        f"Style: Cap,{fname},{spec['fs']},{primary},{primary},{outline_col},{back},-1,0,0,0,100,100,0,0,"
-        f"{border},{spec['outline']},{shadow},{align},60,60,{mv},1\n"
+        f"Style: Cap,{fname},{font_size},{primary},{primary},{outline_col},{back},-1,0,0,0,100,100,0,0,"
+        f"{border},{spec['outline']},{shadow},{align},60,60,{margin_v},1\n"
         "[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n"
     )
     fmt = (lambda x: x.upper()) if spec["upper"] else (lambda x: x)
