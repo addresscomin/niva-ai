@@ -45,6 +45,10 @@ with _db() as c:
       created REAL NOT NULL, day TEXT NOT NULL, reserved INTEGER NOT NULL DEFAULT 0);
     CREATE INDEX IF NOT EXISTS jobs_uid_created ON jobs(uid, created DESC);
     CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires);
+    CREATE TABLE IF NOT EXISTS password_resets(
+      token_hash TEXT PRIMARY KEY, uid INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires REAL NOT NULL);
+    CREATE INDEX IF NOT EXISTS password_resets_expiry ON password_resets(expires);
     """)
 
 
