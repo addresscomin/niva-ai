@@ -22,6 +22,10 @@ class Cred(BaseModel):
     password: str
 
 
+class EmailOnly(BaseModel):
+    email: str
+
+
 class PasswordReset(BaseModel):
     token: str
     new_password: str
@@ -288,10 +292,12 @@ def _send_reset_email(to_email, reset_url):
 
 
 @app.post("/api/forgot-password")
-def forgot_password(c: Cred, req: Request):
+def forgot_password(c: EmailOnly, req: Request):
     email = c.email.strip().lower()
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise HTTPException(400, "Enter a valid email address.")
+    if not all(os.getenv(k, "") for k in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM")):
+        raise HTTPException(503, "Email recovery is not configured on this server yet.")
     token = db.create_password_reset(email)
     if token:
         base = os.getenv("PUBLIC_BASE_URL", str(req.base_url).rstrip("/"))
