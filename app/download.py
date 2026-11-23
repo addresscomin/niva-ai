@@ -3,21 +3,32 @@
 - fetch_audio: sirf audio (transcript ke liye, chhota file)
 - fetch_section: sirf chune hue scene ka video range
 """
-import json, subprocess
+import json, subprocess, shutil
 from pathlib import Path
 from . import config
 
 
 def _yt(*extra):
     base = ["yt-dlp", "--no-playlist", "--no-warnings"]
+    base += ["--extractor-retries", "3", "--retries", "3", "--fragment-retries", "3"]
+    if shutil.which("node"):
+        base += ["--js-runtimes", "node", "--remote-components", "ejs:github"]
     if config.YT_COOKIES_FILE:
         base += ["--cookies", config.YT_COOKIES_FILE]
     return base + list(extra)
 
 
+def _run(args, timeout=None):
+    try:
+        return subprocess.run(args, capture_output=True, text=True, check=True, timeout=timeout)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip()
+        detail = detail[-1200:] if detail else "No diagnostic details were returned."
+        raise RuntimeError("The video source could not be accessed. Try another public video URL or upload the video directly. Extractor details: " + detail) from exc
+
+
 def fetch_info(url):
-    r = subprocess.run(_yt("--skip-download", "--dump-single-json", url),
-                       capture_output=True, text=True, check=True, timeout=300)
+    r = _run(_yt("--skip-download", "--dump-single-json", url), timeout=300)
     j = json.loads(r.stdout)
     return {
         "title": j.get("title", ""),
@@ -27,8 +38,8 @@ def fetch_info(url):
 
 
 def fetch_audio(url, job_dir: Path) -> Path:
-    subprocess.run(_yt("-f", "bestaudio/best", "-x", "--audio-format", "mp3", "--audio-quality", "96K",
-                       "-o", str(job_dir / "audio.%(ext)s"), url), check=True)
+    _run(_yt("-f", "bestaudio/best", "-x", "--audio-format", "mp3", "--audio-quality", "96K",
+             "-o", str(job_dir / "audio.%(ext)s"), url), timeout=900)
     out = job_dir / "audio.mp3"
     if not out.exists():
         raise RuntimeError("Audio download nahi hua")
@@ -43,10 +54,9 @@ def has_video(p) -> bool:
 
 def fetch_section(url, start, end, job_dir: Path, name: str) -> Path:
     """Sirf start..end ka video range download karo (keyframe-accurate cut)."""
-    subprocess.run(_yt("-f", "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b",
-                       "--download-sections", f"*{start:.2f}-{end:.2f}", "--force-keyframes-at-cuts",
-                       "--merge-output-format", "mp4", "-o", str(job_dir / f"{name}.%(ext)s"), url),
-                   check=True)
+    _run(_yt("-f", "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b",
+             "--download-sections", f"*{start:.2f}-{end:.2f}", "--force-keyframes-at-cuts",
+             "--merge-output-format", "mp4", "-o", str(job_dir / f"{name}.%(ext)s"), url), timeout=900)
     found = sorted(job_dir.glob(f"{name}.*"))
     if not found:
         raise RuntimeError("Clip section download nahi hua")
