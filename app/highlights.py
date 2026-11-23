@@ -137,7 +137,7 @@ def pick_highlights(path, words, duration, lmin, lmax, limit, progress=lambda s:
         per_chunk = max(2, math.ceil(limit / n_chunks) + 1)
         cands = []
         for k in range(n_chunks):
-            progress(f"AI best moments dhoondh raha hai ({k + 1}/{n_chunks})")
+            progress(f"Finding highlights with AI ({k + 1}/{n_chunks})")
             try:
                 raw = llm_chunk(words, k * WINDOW_SEC, (k + 1) * WINDOW_SEC, per_chunk, lmin, lmax)
             except Exception as ex:
@@ -146,6 +146,6 @@ def pick_highlights(path, words, duration, lmin, lmax, limit, progress=lambda s:
             cands += normalise(raw, duration, lmin, lmax)
         picked = pick_non_overlapping(cands, limit)
     if not picked:
-        progress("Audio energy se moments chun raha hai")
+        progress("Finding highlights from audio activity")
         picked = energy_candidates(path, duration, target=(lmin + lmax) // 2, limit=limit)
     return picked
