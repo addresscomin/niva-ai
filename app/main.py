@@ -38,6 +38,8 @@ class Edit(BaseModel):
     position: str = "bottom"
     start: float
     end: float
+    layout: str = "blur"
+    aspect_ratio: str = "9:16"
 
 
 def me(req: Request):
