@@ -52,7 +52,7 @@ def make_ass(words, start, end, path, style="hype", per_line=3, position="bottom
     margin_v = int(mv * height / 1920)
     font_size = int(spec["fs"] * height / 1920)
     head = (
-        f"[Script Info]\\nScriptType: v4.00+\\nPlayResX: {width}\\nPlayResY: {height}\\n"
+        f"[Script Info]\nScriptType: v4.00+\nPlayResX: {width}\nPlayResY: {height}\n"
         "[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,"
         "Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,"
         "MarginL,MarginR,MarginV,Encoding\n"
