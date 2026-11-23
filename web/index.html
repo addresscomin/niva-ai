@@ -1,0 +1,98 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0b12"><link rel="manifest" href="manifest.json"><title>ReelForge - AI Reel Clipper</title>
+<style>
+:root{--bg:#0b0b12;--c:#161622;--p:#7c4dff;--m:#9a9ab0;--line:#2a2a3c}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:#eee;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.w{max-width:1000px;margin:auto;padding:16px}
+.card{background:var(--c);border-radius:14px;padding:16px;margin:12px 0}
+input,select,textarea,button{width:100%;padding:12px;margin:5px 0;border-radius:10px;border:1px solid var(--line);background:#0f0f19;color:#eee;font:inherit}
+input[type=checkbox]{width:auto;margin:0 8px 0 0;padding:0}
+button{background:var(--p);border:0;font-weight:600;cursor:pointer}button.s{background:var(--line)}button:disabled{opacity:.5}
+nav{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.pill{background:var(--line);padding:6px 12px;border-radius:20px;font-size:14px}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+video{width:100%;border-radius:12px;background:#000;aspect-ratio:9/16}
+.r{display:grid;grid-template-columns:1fr 1fr;gap:8px}.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.m{color:var(--m);font-size:13px}a{color:#9f8cff}
+#ed{position:fixed;inset:0;background:#000c;display:none;overflow:auto}#ed .card{max-width:520px;margin:20px auto}
+h1{margin:.2em 0}label{font-size:13px;color:var(--m)}
+@media(max-width:560px){.r,.r3{grid-template-columns:1fr}}
+</style></head><body><div class="w">
+
+<div id="auth" style="display:none"><div class="card"><h1>ReelForge</h1>
+<p class="m">Link paste karo, best moments ki short reels ban jayengi. Signup karo.</p>
+<input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (8+)">
+<div class="r"><button onclick="auth('login')">Login</button><button class="s" onclick="auth('signup')">Sign up</button></div>
+<p id="ae" class="m"></p></div></div>
+
+<div id="app" style="display:none">
+<nav><h1>ReelForge</h1><span><span class="pill" id="cr"></span> <a href="#" onclick="out();return false">Logout</a></span></nav>
+
+<div class="card">
+<input id="url" placeholder="YouTube / Vimeo link (stream bhi chalegi, poori video download nahi hogi)">
+<input id="file" type="file" accept="video/*">
+<div class="r3">
+<div><label>Clips kitne</label><input id="count" type="number" min="1" max="20" value="10"></div>
+<div><label>Min sec (10+)</label><input id="min" type="number" min="10" max="120" value="20"></div>
+<div><label>Max sec (120 tak)</label><input id="max" type="number" min="10" max="120" value="50"></div>
+</div>
+<div class="r">
+<div><label>Layout</label><select id="layout"><option value="blur">Gaming / landscape (blur bg)</option><option value="crop">Center crop</option></select></div>
+<div><label>Caption style</label><select id="style"></select></div>
+<div><label>Font</label><select id="font"></select></div>
+<div><label>Caption position</label><select id="position"></select></div>
+</div>
+<label><input id="dub" type="checkbox"> Hindi dubbing (beta)</label>
+<label><input id="mute" type="checkbox"> Audio hatao (sirf video clip)</label>
+<button id="go" onclick="go()">Clips banao</button><p id="ge" class="m"></p>
+<p class="m">Process: audio se transcript, phir AI best moments, phir sirf chune hue scenes download hote hain. Koi logo/watermark nahi.</p>
+</div>
+
+<div id="jobs"></div></div>
+
+<div id="ed"><div class="card"><b>Caption edit</b>
+<textarea id="et" rows="5"></textarea>
+<div class="r"><select id="es"></select><select id="ep"></select></div>
+<select id="ef"></select>
+<div class="r"><div><label>Start (sec)</label><input id="s0" type="number" step="0.5"></div><div><label>End (sec)</label><input id="s1" type="number" step="0.5"></div></div>
+<button onclick="save()">Save &amp; re-render</button><button class="s" onclick="$('ed').style.display='none'">Cancel</button>
+<p id="ee" class="m"></p></div></div>
+
+<script>
+const $=id=>document.getElementById(id);let U=null,J=[],E=null,CFG=null;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+async function api(p,o){const r=await fetch(p,o),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.detail||'Error');return j}
+const post=(p,b)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+function fill(sel,obj,labels){sel.innerHTML=Object.entries(obj).map(([k,v])=>`<option value="${esc(k)}">${esc(labels?v:k)}</option>`).join('')}
+async function loadCfg(){CFG=await api('/api/config');
+ fill($('style'),CFG.styles,true);fill($('es'),CFG.styles,true);
+ const fonts={'':'Default','arial':'Arial','dejavu':'DejaVu Sans','devanagari':'Noto Sans Devanagari'};
+ fill($('font'),fonts,true);fill($('ef'),fonts,true);
+ fill($('position'),{bottom:'Bottom',center:'Center',top:'Top'},true);fill($('ep'),{bottom:'Bottom',center:'Center',top:'Top'},true);
+ $('count').max=CFG.max_per_job;$('min').min=CFG.clip_min;$('max').max=CFG.clip_max;
+ $('min').value=CFG.clip_min;$('dub').disabled=!CFG.dubbing;
+ if(!CFG.dubbing)$('dub').parentElement.title='Server par dubbing band hai';
+}
+function show(){$('auth').style.display=U?'none':'block';$('app').style.display=U?'block':'none'}
+async function auth(m){try{U=await post('/api/'+m,{email:$('em').value,password:$('pw').value});show();load()}catch(e){$('ae').textContent=e.message}}
+async function out(){await post('/api/logout',{});U=null;show()}
+async function load(){try{U=await api('/api/me');J=await api('/api/jobs')}catch{U=null;return show()}
+ $('cr').textContent=U.remaining_today+'/'+U.daily_limit+' clips aaj ke bache';draw();
+ if(J.some(j=>!['done','error'].includes(j.status)))setTimeout(load,3000)}
+function draw(){$('jobs').innerHTML=J.map(j=>`<div class="card"><b>${esc(j.status)}</b> <span class="m">${esc(j.error)}</span><div class="g">`+j.clips.map(c=>
+`<div><video controls playsinline preload="metadata" src="/files/${j.id}/${c.file}?v=${c.v}"></video>
+<div class="m">${esc(c.title)} · ${Math.round(c.end-c.start)}s${c.dub?' · Hindi dub':''}</div>
+<button class="s" onclick="edit('${j.id}',${c.i})">Edit captions</button>
+<a href="/files/${j.id}/${c.file}?v=${c.v}" download>Download (no watermark)</a></div>`).join('')+'</div></div>').join('')}
+async function go(){$('ge').textContent='';const b=$('go');b.disabled=true;
+ const f=new FormData();f.append('url',$('url').value.trim());f.append('layout',$('layout').value);f.append('style',$('style').value);
+ f.append('font',$('font').value);f.append('position',$('position').value);f.append('count',$('count').value);
+ f.append('min_sec',$('min').value);f.append('max_sec',$('max').value);f.append('dub',$('dub').checked?'true':'false');f.append('mute',$('mute').checked?'true':'false');
+ if($('file').files[0])f.append('file',$('file').files[0]);
+ try{const r=await api('/api/jobs',{method:'POST',body:f});$('ge').textContent='Job shuru: '+r.clips_reserved+' clips reserved';load()}
+ catch(e){$('ge').textContent=e.message}finally{b.disabled=false}}
+function edit(id,i){const c=J.find(j=>j.id==id).clips.find(c=>c.i==i);E={id,i};$('et').value=c.text;$('es').value=c.style;$('ep').value=c.position||'bottom';$('ef').value=c.font||'';
+ $('s0').value=c.start.toFixed(1);$('s1').value=c.end.toFixed(1);$('ee').textContent='';$('ed').style.display='block'}
+async function save(){$('ee').textContent='Rendering...';try{await post(`/api/jobs/${E.id}/clips/${E.i}`,{text:$('et').value,style:$('es').value,font:$('ef').value,position:$('ep').value,start:+$('s0').value,end:+$('s1').value});$('ed').style.display='none';load()}catch(e){$('ee').textContent=e.message}}
+(async()=>{try{await loadCfg();U=await api('/api/me');show();load()}catch{U=null;show()}})();
+</script></body></html>
