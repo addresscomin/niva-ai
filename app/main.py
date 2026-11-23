@@ -1,8 +1,8 @@
-import re, shutil, threading, time, uuid, os
-from pathlib import Path
+import re, shutil, threading, time, uuid, os, secrets, smtplib, httpx
+from pathlib import Path\nfrom email.message import EmailMessage
 from urllib.parse import urlparse
 from fastapi import FastAPI, Form, UploadFile, File, Request, Response, HTTPException, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from . import config, db
@@ -21,7 +21,7 @@ class Cred(BaseModel):
     password: str
 
 
-class Edit(BaseModel):
+class PasswordReset(BaseModel):\n    token: str\n    new_password: str\n\n\nclass Edit(BaseModel):
     text: str
     style: str = "hype"
     font: str = ""
