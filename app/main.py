@@ -211,4 +211,99 @@ def files(jid: str, name: str, u=Depends(me)):
     return FileResponse(target, filename=safe)
 
 
+
+@app.get("/auth/google")
+def google_start():
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(503, "Google sign-in is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the hosting environment.")
+    state = secrets.token_urlsafe(24)
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "https://reelforge-ai-dhbx.onrender.com/auth/google/callback")
+    params = httpx.QueryParams({"client_id": client_id, "redirect_uri": redirect_uri,
+        "response_type": "code", "scope": "openid email profile", "state": state,
+        "prompt": "select_account"})
+    resp = RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + str(params), status_code=302)
+    resp.set_cookie("oauth_state", state, httponly=True, secure=True, samesite="lax", max_age=600, path="/")
+    return resp
+
+
+@app.get("/auth/google/callback")
+def google_callback(req: Request, code: str = "", state: str = "", error: str = ""):
+    if error:
+        return RedirectResponse("/?auth_error=google_cancelled", status_code=303)
+    expected = req.cookies.get("oauth_state")
+    if not code or not state or not expected or not secrets.compare_digest(state, expected):
+        raise HTTPException(400, "Google sign-in state validation failed")
+    client_id, client_secret = os.getenv("GOOGLE_CLIENT_ID", ""), os.getenv("GOOGLE_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(503, "Google sign-in is not configured")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "https://reelforge-ai-dhbx.onrender.com/auth/google/callback")
+    try:
+        token_response = httpx.post("https://oauth2.googleapis.com/token", data={
+            "code": code, "client_id": client_id, "client_secret": client_secret,
+            "redirect_uri": redirect_uri, "grant_type": "authorization_code"
+        }, timeout=20)
+        token_response.raise_for_status()
+        id_token = token_response.json().get("id_token")
+        if not id_token:
+            raise ValueError("Missing Google ID token")
+        verify = httpx.get("https://oauth2.googleapis.com/tokeninfo",
+                           params={"id_token": id_token}, timeout=20)
+        verify.raise_for_status()
+        claims = verify.json()
+        if claims.get("aud") != client_id or claims.get("email_verified") not in (True, "true"):
+            raise ValueError("Google email verification failed")
+        email = claims.get("email", "").strip().lower()
+        if not email:
+            raise ValueError("Google email is missing")
+        token = db.oauth_login(email)
+    except Exception as exc:
+        raise HTTPException(400, "Google sign-in failed. Please try email sign-in.") from exc
+    resp = RedirectResponse("/", status_code=303)
+    _cookie(resp, token)
+    resp.delete_cookie("oauth_state", path="/")
+    return resp
+
+
+def _send_reset_email(to_email, reset_url):
+    host, user = os.getenv("SMTP_HOST", ""), os.getenv("SMTP_USER", "")
+    password, sender = os.getenv("SMTP_PASSWORD", ""), os.getenv("SMTP_FROM", user)
+    if not all((host, user, password, sender)):
+        raise HTTPException(503, "Email recovery is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD and SMTP_FROM.")
+    msg = EmailMessage()
+    msg["Subject"] = "Reset your ReelForge password"
+    msg["From"], msg["To"] = sender, to_email
+    msg.set_content("A password reset was requested for your ReelForge account. This link expires in 30 minutes:
+
+" + reset_url + "
+
+If you did not request this, ignore this email.")
+    with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=20) as server:
+        server.starttls()
+        server.login(user, password)
+        server.send_message(msg)
+
+
+@app.post("/api/forgot-password")
+def forgot_password(c: Cred, req: Request):
+    email = c.email.strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(400, "Enter a valid email address.")
+    token = db.create_password_reset(email)
+    if token:
+        base = os.getenv("PUBLIC_BASE_URL", str(req.base_url).rstrip("/"))
+        _send_reset_email(email, base + "/?reset_token=" + token)
+    return {"message": "If an account exists for that email, a reset link has been sent."}
+
+
+@app.post("/api/reset-password")
+def reset_password(c: PasswordReset):
+    if not 8 <= len(c.new_password) <= 128:
+        raise HTTPException(400, "Password must be 8-128 characters.")
+    if not db.reset_password(c.token, c.new_password):
+        raise HTTPException(400, "This reset link is invalid or has expired.")
+    return {"message": "Password updated. Please sign in again."}
+
+
 app.mount("/", StaticFiles(directory="web", html=True), name="web")
