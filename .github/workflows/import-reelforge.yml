@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - reelforge-v2.2.zip
+      - .github/workflows/import-reelforge.yml
 permissions:
   contents: write
 jobs:
