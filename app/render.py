@@ -37,5 +37,5 @@ def render_clip(src: Path, words, clip, out_dir: Path, idx: int, layout="blur", 
             "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out.name]
     subprocess.run(cmd, cwd=out_dir, check=True)
     if not has_video(out):
-        raise RuntimeError("Clip me video stream nahi bana")
+        raise RuntimeError("The rendered clip does not contain a video stream.")
     return out
