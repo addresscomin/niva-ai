@@ -280,7 +280,7 @@ def _send_reset_email(to_email, reset_url):
     msg = EmailMessage()
     msg["Subject"] = "Reset your ReelForge password"
     msg["From"], msg["To"] = sender, to_email
-    msg.set_content("A password reset was requested for your ReelForge account. This link expires in 30 minutes:\\n\\n" + reset_url + "\\n\\nIf you did not request this, ignore this email.")
+    msg.set_content("A password reset was requested for your ReelForge account. This link expires in 30 minutes:\n\n" + reset_url + "\n\nIf you did not request this, ignore this email.")
     with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=20) as server:
         server.starttls()
         server.login(user, password)
