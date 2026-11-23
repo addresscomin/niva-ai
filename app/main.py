@@ -151,7 +151,7 @@ async def create(url: str = Form(""), layout: str = Form("blur"), style: str = F
     jid = uuid.uuid4().hex[:12]
     reserved = db.reserve_job(jid, u["id"], opts["count"])
     if reserved < 1:
-        raise HTTPException(402, f"Aaj ke {config.DAILY_CLIP_LIMIT} clips poore ho gaye. Kal phir try karo.")
+        raise HTTPException(402, f"You have reached the daily limit of {config.DAILY_CLIP_LIMIT} clips. Please try again tomorrow.")
     opts["count"] = reserved
 
     job_dir = config.DATA / jid
@@ -200,7 +200,7 @@ def edit(jid: str, i: int, e: Edit, u=Depends(me)):
     if not clip:
         raise HTTPException(404, "Clip not found.")
     if not config.CLIP_MIN_SEC <= e.end - e.start <= config.CLIP_MAX_SEC or e.start < 0:
-        raise HTTPException(400, f"Clip {config.CLIP_MIN_SEC}-{config.CLIP_MAX_SEC} second ka rakho")
+        raise HTTPException(400, f"Clip duration must be between {config.CLIP_MIN_SEC} and {config.CLIP_MAX_SEC} seconds.")
     if e.style not in STYLES:
         raise HTTPException(400, "Invalid caption style.")
     clip["layout"] = e.layout if e.layout in ("blur", "crop") else clip.get("layout", "blur")
