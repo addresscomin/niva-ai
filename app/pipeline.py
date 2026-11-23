@@ -68,28 +68,28 @@ def run(job_dir: Path, url=None, file=None, opts=None, progress=lambda s: None):
     if file:
         analysis, dur = Path(file), duration_of(file)
     else:
-        progress("Video info le raha hai")
+        progress("Reading video information")
         info = download.fetch_info(url)
         if info["is_live"]:
-            raise ValueError("Live stream abhi supported nahi. Stream khatam hone ke baad link do.")
+            raise ValueError("Live streams are not supported. Please use the recording after the stream ends.")
         dur = info["duration"]
         if dur <= 0:
-            raise ValueError("Video ki length nahi mili")
-        progress("Stream ka sirf audio le raha hai (poori video nahi)")
+            raise ValueError("Could not detect the video duration.")
+        progress("Preparing audio for transcription")
         analysis = download.fetch_audio(url, job_dir)
 
-    progress("Transcript ban raha hai (lambi stream me time lagega)")
+    progress("Transcribing audio. Longer videos may take more time.")
     words = transcribe(analysis, progress=progress)
     (job_dir / "words.json").write_text(json.dumps(words))
 
     picks = pick_highlights(analysis, words, dur, opts["min_sec"], opts["max_sec"], opts["count"], progress)
     if not picks:
-        raise ValueError("Koi moment nahi mila")
+        raise ValueError("No suitable moments were found in this video.")
 
     src_file = _upload(job_dir) if file else None
     res = []
     for i, c in enumerate(picks):
-        progress(f"Clip {i + 1}/{len(picks)} render ho raha hai")
+        progress(f"Rendering clip {i + 1} of {len(picks)}")
         res.append(_render_one(job_dir, i, c, words, url, src_file, opts))
     return res
 
