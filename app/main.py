@@ -22,7 +22,12 @@ class Cred(BaseModel):
     password: str
 
 
-class PasswordReset(BaseModel):\n    token: str\n    new_password: str\n\n\nclass Edit(BaseModel):
+class PasswordReset(BaseModel):
+    token: str
+    new_password: str
+
+
+class Edit(BaseModel):
     text: str
     style: str = "hype"
     font: str = ""
