@@ -227,7 +227,7 @@ def google_start():
     client_id = os.getenv("GOOGLE_CLIENT_ID", "")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
     if not client_id or not client_secret:
-        raise HTTPException(503, "Google sign-in is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the hosting environment.")
+        return RedirectResponse("/?auth_error=google_not_configured", status_code=303)
     state = secrets.token_urlsafe(24)
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "https://reelforge-ai-dhbx.onrender.com/auth/google/callback")
     params = httpx.QueryParams({"client_id": client_id, "redirect_uri": redirect_uri,
