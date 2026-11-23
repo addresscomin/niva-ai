@@ -39,7 +39,7 @@ class Edit(BaseModel):
 def me(req: Request):
     u = db.user(req.cookies.get("t"))
     if not u:
-        raise HTTPException(401, "Pehle login karo")
+        raise HTTPException(401, "Please sign in to continue.")
     return u
 
 
@@ -50,9 +50,9 @@ def _cookie(resp, token):
 
 def _valid_opts(layout, style, font, position, min_sec, max_sec, count, dub, mute=False):
     if min_sec < config.CLIP_MIN_SEC or max_sec > config.CLIP_MAX_SEC or min_sec > max_sec:
-        raise HTTPException(400, f"Clip length {config.CLIP_MIN_SEC}-{config.CLIP_MAX_SEC} second ke beech rakho")
+        raise HTTPException(400, f"Clip duration must be between {config.CLIP_MIN_SEC} and {config.CLIP_MAX_SEC} seconds.")
     if dub and not config.DUBBING_ENABLED:
-        raise HTTPException(400, "Hindi dubbing abhi server par band hai")
+        raise HTTPException(400, "Hindi dubbing is currently disabled on this server.")
     return {
         "layout": layout if layout in ("blur", "crop") else "blur",
         "style": style if style in STYLES else "hype",
@@ -69,10 +69,10 @@ def _valid_opts(layout, style, font, position, min_sec, max_sec, count, dub, mut
 def signup(c: Cred, resp: Response):
     e = c.email.strip().lower()
     if len(e) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", e) or not 8 <= len(c.password) <= 128:
-        raise HTTPException(400, "Valid email aur 8-128 character password do")
+        raise HTTPException(400, "Enter a valid email and a password between 8 and 128 characters.")
     token = db.signup(e, c.password)
     if not token:
-        raise HTTPException(400, "Ye email pehle se registered hai")
+        raise HTTPException(400, "This email is already registered. Please sign in.")
     _cookie(resp, token)
     return db.user(token)
 
@@ -81,7 +81,7 @@ def signup(c: Cred, resp: Response):
 def login(c: Cred, resp: Response):
     token = db.login(c.email.strip().lower(), c.password)
     if not token:
-        raise HTTPException(400, "Email ya password galat hai")
+        raise HTTPException(400, "Incorrect email or password.")
     _cookie(resp, token)
     return db.user(token)
 
@@ -131,14 +131,14 @@ async def create(url: str = Form(""), layout: str = Form("blur"), style: str = F
                  file: UploadFile | None = File(None), u=Depends(me)):
     has_file = bool(file and file.filename)
     if not has_file and not url.strip():
-        raise HTTPException(400, "Video link ya file do")
+        raise HTTPException(400, "Add a video URL or upload a video file.")
     url = url.strip()
     if url:
         parsed = urlparse(url)
         if parsed.scheme != "https" or (parsed.hostname or "").lower() not in ALLOWED_HOSTS:
-            raise HTTPException(400, "Abhi sirf YouTube/Vimeo https links ya direct upload allowed hai")
+            raise HTTPException(400, "Only HTTPS YouTube or Vimeo links and direct video uploads are supported.")
     if has_file and Path(file.filename or "").suffix.lower() not in ALLOWED_EXT:
-        raise HTTPException(400, "MP4, MOV, MKV, WEBM ya M4V file upload karo")
+        raise HTTPException(400, "Upload an MP4, MOV, MKV, WEBM, or M4V video.")
     opts = _valid_opts(layout, style, font, position, min_sec, max_sec, count, dub, mute)
 
     jid = uuid.uuid4().hex[:12]
@@ -158,11 +158,11 @@ async def create(url: str = Form(""), layout: str = Form("blur"), style: str = F
                 while chunk := await file.read(1024 * 1024):
                     size += len(chunk)
                     if size > config.MAX_UPLOAD_MB * 1024 * 1024:
-                        raise HTTPException(413, f"Upload limit {config.MAX_UPLOAD_MB} MB hai")
+                        raise HTTPException(413, f"Upload limit is {config.MAX_UPLOAD_MB} MB.")
                     out.write(chunk)
         except Exception:
             db.settle_job(jid, 0)
-            db.job_set(jid, status="error", error="Upload fail")
+            db.job_set(jid, status="error", error="Upload failed.")
             shutil.rmtree(job_dir, ignore_errors=True)
             raise
         finally:
@@ -191,11 +191,11 @@ def edit(jid: str, i: int, e: Edit, u=Depends(me)):
     j = _own(jid, u)
     clip = next((c for c in j["clips"] if c["i"] == i), None)
     if not clip:
-        raise HTTPException(404, "Clip nahi mila")
+        raise HTTPException(404, "Clip not found.")
     if not config.CLIP_MIN_SEC <= e.end - e.start <= config.CLIP_MAX_SEC or e.start < 0:
         raise HTTPException(400, f"Clip {config.CLIP_MIN_SEC}-{config.CLIP_MAX_SEC} second ka rakho")
     if e.style not in STYLES:
-        raise HTTPException(400, "Invalid caption style")
+        raise HTTPException(400, "Invalid caption style.")
     with SEM:
         new = render_one(config.DATA / jid, clip, e.text[:3000], e.style, e.font if e.font in FONT_NAMES else "",
                          e.position if e.position in POSITIONS else "bottom", e.start, e.end,
@@ -213,7 +213,7 @@ def files(jid: str, name: str, u=Depends(me)):
     base = (config.DATA / jid).resolve()
     target = (base / safe).resolve()
     if target.parent != base or not target.is_file():
-        raise HTTPException(404, "File not found")
+        raise HTTPException(404, "File not found.")
     return FileResponse(target, filename=safe)
 
 
