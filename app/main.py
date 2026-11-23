@@ -52,7 +52,7 @@ def _cookie(resp, token):
                     max_age=60 * 60 * 24 * 30, path="/")
 
 
-def _valid_opts(layout, style, font, position, min_sec, max_sec, count, dub, mute=False):
+def _valid_opts(layout, style, font, position, min_sec, max_sec, count, dub, mute=False, aspect_ratio="9:16"):
     if min_sec < config.CLIP_MIN_SEC or max_sec > config.CLIP_MAX_SEC or min_sec > max_sec:
         raise HTTPException(400, f"Clip duration must be between {config.CLIP_MIN_SEC} and {config.CLIP_MAX_SEC} seconds.")
     if dub and not config.DUBBING_ENABLED:
@@ -66,6 +66,7 @@ def _valid_opts(layout, style, font, position, min_sec, max_sec, count, dub, mut
         "count": max(1, min(count, config.MAX_CLIPS_PER_JOB)),
         "dub": bool(dub),
         "mute": bool(mute),
+        "aspect_ratio": aspect_ratio if aspect_ratio in ("9:16", "16:9") else "9:16",
     }
 
 
@@ -131,7 +132,7 @@ def worker(jid, uid, url, file_path, opts):
 async def create(url: str = Form(""), layout: str = Form("blur"), style: str = Form("hype"),
                  font: str = Form(""), position: str = Form("bottom"),
                  min_sec: int = Form(config.CLIP_MIN_SEC), max_sec: int = Form(60),
-                 count: int = Form(10), dub: bool = Form(False), mute: bool = Form(False),
+                 count: int = Form(8), dub: bool = Form(False), mute: bool = Form(False), aspect_ratio: str = Form("9:16"),
                  file: UploadFile | None = File(None), u=Depends(me)):
     has_file = bool(file and file.filename)
     if not has_file and not url.strip():
@@ -143,7 +144,7 @@ async def create(url: str = Form(""), layout: str = Form("blur"), style: str = F
             raise HTTPException(400, "Only HTTPS YouTube or Vimeo links and direct video uploads are supported.")
     if has_file and Path(file.filename or "").suffix.lower() not in ALLOWED_EXT:
         raise HTTPException(400, "Upload an MP4, MOV, MKV, WEBM, or M4V video.")
-    opts = _valid_opts(layout, style, font, position, min_sec, max_sec, count, dub, mute)
+    opts = _valid_opts(layout, style, font, position, min_sec, max_sec, count, dub, mute, aspect_ratio)
 
     jid = uuid.uuid4().hex[:12]
     reserved = db.reserve_job(jid, u["id"], opts["count"])
@@ -200,6 +201,8 @@ def edit(jid: str, i: int, e: Edit, u=Depends(me)):
         raise HTTPException(400, f"Clip {config.CLIP_MIN_SEC}-{config.CLIP_MAX_SEC} second ka rakho")
     if e.style not in STYLES:
         raise HTTPException(400, "Invalid caption style.")
+    clip["layout"] = e.layout if e.layout in ("blur", "crop") else clip.get("layout", "blur")
+    clip["aspect_ratio"] = e.aspect_ratio if e.aspect_ratio in ("9:16", "16:9") else clip.get("aspect_ratio", "9:16")
     with SEM:
         new = render_one(config.DATA / jid, clip, e.text[:3000], e.style, e.font if e.font in FONT_NAMES else "",
                          e.position if e.position in POSITIONS else "bottom", e.start, e.end,
