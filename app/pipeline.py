@@ -47,14 +47,14 @@ def _render_one(job_dir, idx, clip, words, url, src_file, opts, text=None):
     try:
         render_clip(src, ws, {"start": s, "end": e}, job_dir, idx, opts["layout"], opts["style"],
                     font=font, position=opts["position"], seek=seek, audio=audio,
-                    mute=opts.get("mute", False))
+                    mute=opts.get("mute", False), aspect_ratio=opts.get("aspect_ratio", "9:16"))
     finally:
         if tmp:
             Path(src).unlink(missing_ok=True)
 
     return {"i": idx, "file": f"reel_{idx}.mp4", "title": clip.get("title", f"Clip {idx + 1}"),
             "score": clip.get("score", 0), "start": s, "end": e, "v": 0,
-            "layout": opts["layout"], "style": opts["style"], "font": font or "",
+            "layout": opts["layout"], "aspect_ratio": opts.get("aspect_ratio", "9:16"), "style": opts["style"], "font": font or "",
             "position": opts["position"], "dub": dub, "mute": opts.get("mute", False),
             "text": hindi if dub else " ".join(w["w"] for w in ws)}
 
@@ -99,7 +99,7 @@ def render_one(job_dir: Path, clip, text, style, font, position, start, end, dub
     meta = json.loads((job_dir / "meta.json").read_text())
     words = json.loads((job_dir / "words.json").read_text())
     src_file = _upload(job_dir)
-    opts = {"layout": clip.get("layout", "blur"), "style": style, "font": font, "position": position,
+    opts = {"layout": clip.get("layout", "blur"), "aspect_ratio": clip.get("aspect_ratio", "9:16"), "style": style, "font": font, "position": position,
             "dub": dub or clip.get("dub", False), "mute": clip.get("mute", False)}
     c = {**clip, "start": start, "end": end}
     changed_text = text.strip() != clip.get("text", "").strip()
