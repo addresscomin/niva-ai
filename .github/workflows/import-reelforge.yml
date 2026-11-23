@@ -1,0 +1,53 @@
+name: import-reelforge-v22
+on:
+  push:
+    branches: [main]
+    paths:
+      - reelforge-v2.2.zip
+      - .github/workflows/import-reelforge.yml
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Extract and validate ReelForge v2.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="reelforge-v2.2.zip"
+          test -f "$ZIP"
+          mkdir -p /tmp/rf
+          unzip -q "$ZIP" -d /tmp/rf
+          SRC="/tmp/rf/reelforge"
+          test -d "$SRC"
+          for f in Dockerfile requirements.txt conftest.py cli.py README.md .env.example .gitignore; do
+            test -f "$SRC/$f" || { echo "Missing required file: $f"; exit 1; }
+            cp "$SRC/$f" .
+          done
+          mkdir -p app web tests .github/workflows
+          for f in config.py db.py download.py transcribe.py highlights.py captions.py render.py dubbing.py pipeline.py main.py llm.py __init__.py; do
+            test -f "$SRC/app/$f" || { echo "Missing required file: app/$f"; exit 1; }
+            cp "$SRC/app/$f" app/
+          done
+          for f in index.html manifest.json; do
+            test -f "$SRC/web/$f" || { echo "Missing required file: web/$f"; exit 1; }
+            cp "$SRC/web/$f" web/
+          done
+          for f in test_db.py test_captions.py test_highlights.py test_api.py; do
+            test -f "$SRC/tests/$f" || { echo "Missing required file: tests/$f"; exit 1; }
+            cp "$SRC/tests/$f" tests/
+          done
+          cp "$SRC/.github/workflows/ci.yml" .github/workflows/ci.yml
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          rm -rf data
+          find . -type f -name '.env' -delete
+          rm -f reelforge-v2.2.zip .github/workflows/import-reelforge.yml
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "ReelForge v2.2"
+          git push
