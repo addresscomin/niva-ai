@@ -42,7 +42,7 @@ def fetch_audio(url, job_dir: Path) -> Path:
              "-o", str(job_dir / "audio.%(ext)s"), url), timeout=900)
     out = job_dir / "audio.mp3"
     if not out.exists():
-        raise RuntimeError("Audio download nahi hua")
+        raise RuntimeError("The audio could not be downloaded from the video source.")
     return out
 
 
@@ -59,9 +59,9 @@ def fetch_section(url, start, end, job_dir: Path, name: str) -> Path:
              "--merge-output-format", "mp4", "-o", str(job_dir / f"{name}.%(ext)s"), url), timeout=900)
     found = sorted(job_dir.glob(f"{name}.*"))
     if not found:
-        raise RuntimeError("Clip section download nahi hua")
+        raise RuntimeError("The selected video section could not be downloaded.")
     out = next((f for f in found if f.suffix == ".mp4"), found[0])
     if not has_video(out):
         out.unlink(missing_ok=True)
-        raise RuntimeError("Video stream nahi mila (sirf audio aaya). Dusra link ya cookies try karo.")
+        raise RuntimeError("No video stream was found. Try another public link or upload the video file.")
     return out
