@@ -159,3 +159,51 @@ def jobs_of(uid):
     with _db() as c:
         rows = c.execute("SELECT * FROM jobs WHERE uid=? ORDER BY created DESC LIMIT 30", (uid,)).fetchall()
     return [_j(r) for r in rows]
+
+
+def oauth_login(email):
+    """Create or sign in a user whose email was verified by the OAuth provider."""
+    email = email.strip().lower()
+    with _db() as c:
+        row = c.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
+        if not row:
+            salt = secrets.token_hex(16)
+            random_pw = secrets.token_urlsafe(48)
+            cur = c.execute("INSERT INTO users(email,pw,salt,created) VALUES(?,?,?,?)",
+                            (email, _h(random_pw, salt), salt, time.time()))
+            uid = cur.lastrowid
+        else:
+            uid = row["id"]
+        token = secrets.token_urlsafe(32)
+        c.execute("DELETE FROM sessions WHERE expires < ?", (time.time(),))
+        c.execute("INSERT INTO sessions(token,uid,expires) VALUES(?,?,?)",
+                  (token, uid, time.time() + SESSION_TTL))
+        return token
+
+
+def create_password_reset(email):
+    with _db() as c:
+        row = c.execute("SELECT id FROM users WHERE email=?", (email.strip().lower(),)).fetchone()
+        if not row:
+            return None
+        raw = secrets.token_urlsafe(32)
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        c.execute("DELETE FROM password_resets WHERE expires < ?", (time.time(),))
+        c.execute("INSERT INTO password_resets(token_hash,uid,expires) VALUES(?,?,?)",
+                  (digest, row["id"], time.time() + 1800))
+        return raw
+
+
+def reset_password(raw_token, new_password):
+    digest = hashlib.sha256(raw_token.encode()).hexdigest()
+    salt = secrets.token_hex(16)
+    with _db() as c:
+        row = c.execute("SELECT uid FROM password_resets WHERE token_hash=? AND expires>?",
+                        (digest, time.time())).fetchone()
+        if not row:
+            return False
+        c.execute("UPDATE users SET pw=?,salt=? WHERE id=?",
+                  (_h(new_password, salt), salt, row["uid"]))
+        c.execute("DELETE FROM password_resets WHERE uid=?", (row["uid"],))
+        c.execute("DELETE FROM sessions WHERE uid=?", (row["uid"],))
+        return True
