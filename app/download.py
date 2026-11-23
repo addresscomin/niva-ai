@@ -10,7 +10,7 @@ from . import config
 
 def _yt(*extra):
     base = ["yt-dlp", "--no-playlist", "--no-warnings"]
-    base += ["--extractor-retries", "3", "--retries", "3", "--fragment-retries", "3"]
+    base += ["--extractor-retries", "5", "--retries", "5", "--fragment-retries", "5", "--socket-timeout", "25"]
     if shutil.which("node"):
         base += ["--js-runtimes", "node", "--remote-components", "ejs:github"]
     if config.YT_COOKIES_FILE:
@@ -23,8 +23,28 @@ def _run(args, timeout=None):
         return subprocess.run(args, capture_output=True, text=True, check=True, timeout=timeout)
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or "").strip()
-        detail = detail[-1200:] if detail else "No diagnostic details were returned."
-        raise RuntimeError("The video source could not be accessed. Try another public video URL or upload the video directly. Extractor details: " + detail) from exc
+
+        # YouTube occasionally fails to return a player response for its default
+        # client set. Retry once with a different supported client combination.
+        if "Failed to extract any player response" in detail and any(
+            "youtube.com" in str(arg) or "youtu.be" in str(arg) for arg in args
+        ) and "--extractor-args" not in args:
+            retry_args = list(args)
+            retry_args[1:1] = ["--extractor-args", "youtube:player_client=web,web_safari,tv"]
+            try:
+                return subprocess.run(
+                    retry_args, capture_output=True, text=True, check=True, timeout=timeout
+                )
+            except subprocess.CalledProcessError as retry_exc:
+                retry_detail = (retry_exc.stderr or retry_exc.stdout or "").strip()
+                detail = (detail + "\\nFallback client attempt: " + retry_detail).strip()
+
+        detail = detail[-1800:] if detail else "No diagnostic details were returned."
+        raise RuntimeError(
+            "The video source could not be accessed. YouTube may be temporarily rejecting "
+            "the server request, or the video may require access. Try again later or upload "
+            "a video file you have permission to use. Extractor details: " + detail
+        ) from exc
 
 
 def fetch_info(url):
